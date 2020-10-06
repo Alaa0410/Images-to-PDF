@@ -13,7 +13,9 @@ import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
+import android.os.Environment;
 import android.preference.PreferenceManager;
+import android.util.Log;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.RadioGroup;
@@ -22,11 +24,13 @@ import com.afollestad.materialdialogs.MaterialDialog;
 import com.itextpdf.text.Rectangle;
 
 import java.io.File;
+import java.io.FileOutputStream;
 
 import swati4star.createpdf.R;
 
 import static swati4star.createpdf.util.Constants.IMAGE_SCALE_TYPE_ASPECT_RATIO;
 import static swati4star.createpdf.util.Constants.IMAGE_SCALE_TYPE_STRETCH;
+import static swati4star.createpdf.util.Constants.pdfDirectory;
 
 public class ImageUtils {
 
@@ -71,11 +75,9 @@ public class ImageUtils {
         Bitmap bitmap;
 
         if (bmp.getWidth() != radius || bmp.getHeight() != radius) {
-            float smallest = Math.min(bmp.getWidth(), bmp.getHeight());
-            float factor = smallest / radius;
             bitmap = Bitmap.createScaledBitmap(bmp,
-                    (int) (bmp.getWidth() / factor),
-                    (int) (bmp.getHeight() / factor), false);
+                    (int) (bmp.getWidth() / 1.0f),
+                    (int) (bmp.getHeight() / 1.0f), false);
         } else {
             bitmap = bmp;
         }
@@ -127,6 +129,7 @@ public class ImageUtils {
 
     /**
      * Calculate the inSampleSize value for given bitmap options & image dimensions
+     *
      * @param options - bitmap options
      * @return inSampleSize value
      * https://developer.android.com/topic/performance/graphics/load-bitmap.html#java
@@ -154,7 +157,6 @@ public class ImageUtils {
     }
 
 
-
     public void showImageScaleTypeDialog(Context context, Boolean saveValue) {
 
         SharedPreferences mSharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
@@ -162,22 +164,22 @@ public class ImageUtils {
                 R.string.image_scale_type);
         MaterialDialog materialDialog =
                 builder.customView(R.layout.image_scale_type_dialog, true)
-                .onPositive((dialog1, which) -> {
-                    View view = dialog1.getCustomView();
-                    RadioGroup radioGroup = view.findViewById(R.id.scale_type);
-                    int selectedId = radioGroup.getCheckedRadioButtonId();
-                    if (selectedId == R.id.aspect_ratio)
-                        mImageScaleType = IMAGE_SCALE_TYPE_ASPECT_RATIO;
-                    else
-                        mImageScaleType = IMAGE_SCALE_TYPE_STRETCH;
+                        .onPositive((dialog1, which) -> {
+                            View view = dialog1.getCustomView();
+                            RadioGroup radioGroup = view.findViewById(R.id.scale_type);
+                            int selectedId = radioGroup.getCheckedRadioButtonId();
+                            if (selectedId == R.id.aspect_ratio)
+                                mImageScaleType = IMAGE_SCALE_TYPE_ASPECT_RATIO;
+                            else
+                                mImageScaleType = IMAGE_SCALE_TYPE_STRETCH;
 
-                    CheckBox mSetAsDefault = view.findViewById(R.id.cbSetDefault);
-                    if (saveValue || mSetAsDefault.isChecked()) {
-                        SharedPreferences.Editor editor = mSharedPreferences.edit();
-                        editor.putString(Constants.DEFAULT_IMAGE_SCALE_TYPE_TEXT, mImageScaleType);
-                        editor.apply();
-                    }
-                }).build();
+                            CheckBox mSetAsDefault = view.findViewById(R.id.cbSetDefault);
+                            if (saveValue || mSetAsDefault.isChecked()) {
+                                SharedPreferences.Editor editor = mSharedPreferences.edit();
+                                editor.putString(Constants.DEFAULT_IMAGE_SCALE_TYPE_TEXT, mImageScaleType);
+                                editor.apply();
+                            }
+                        }).build();
         if (saveValue) {
             View customView = materialDialog.getCustomView();
             customView.findViewById(R.id.cbSetDefault).setVisibility(View.GONE);
@@ -187,6 +189,7 @@ public class ImageUtils {
 
     /**
      * convert a bitmap to gray scale and return it
+     *
      * @param bmpOriginal original bitmap which is converted to a new
      *                    grayscale bitmap
      */
@@ -205,4 +208,53 @@ public class ImageUtils {
         c.drawBitmap(bmpOriginal, 0, 0, paint);
         return bmpGrayscale;
     }
+
+    /**
+     * Saves bitmap to external storage
+     *
+     * @param filename    - name of the file
+     * @param finalBitmap - bitmap to save
+     */
+    public static String saveImage(String filename, Bitmap finalBitmap) {
+
+        if (finalBitmap == null || checkIfBitmapIsWhite(finalBitmap))
+            return null;
+
+        String root = Environment.getExternalStorageDirectory().toString();
+        File myDir = new File(root + pdfDirectory);
+        String fileName = filename + ".png";
+
+        File file = new File(myDir, fileName);
+        if (file.exists())
+            file.delete();
+
+        try {
+            FileOutputStream out = new FileOutputStream(file);
+            finalBitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
+            Log.v("saving", fileName);
+            out.flush();
+            out.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return myDir + "/" + fileName;
+    }
+
+    /**
+     * Checks of the bitmap is just all white pixels
+     *
+     * @param bitmap - input bitmap
+     * @return - true, if bitmap is all white
+     */
+    private static boolean checkIfBitmapIsWhite(Bitmap bitmap) {
+        if (bitmap == null)
+            return true;
+        Bitmap whiteBitmap = Bitmap.createBitmap(bitmap.getWidth(), bitmap.getHeight(), bitmap.getConfig());
+        Canvas canvas = new Canvas(whiteBitmap);
+        canvas.drawColor(Color.WHITE);
+        return bitmap.sameAs(whiteBitmap);
+    }
+
+
 }
